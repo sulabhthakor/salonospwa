@@ -1,0 +1,13 @@
+{
+  "name": "salonospwa-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"SHARED,BACK,FRONT\" -c \"blue,red,green\" \"pnpm --filter @salon/shared dev\" \"pnpm --filter @salon/backend dev\" \"pnpm --filter @salon/frontend dev\"",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}

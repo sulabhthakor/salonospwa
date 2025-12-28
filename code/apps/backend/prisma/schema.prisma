@@ -1,0 +1,131 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OWNER
+  STAFF
+  CLIENT
+}
+
+enum BusinessStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      BusinessStatus @default(PENDING)
+  owner       User     @relation("BusinessOwner", fields: [ownerId], references: [id])
+  ownerId     String
+  locations   Location[]
+  staff       User[]   @relation("BusinessStaff")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Location {
+  id          Int     @id @default(autoincrement())
+  business    Business @relation(fields: [businessId], references: [id])
+  businessId  String
+  name        String
+  tenantUsers User[]   // Staff working at this location
+  clients     Client[]
+  appointments Appointment[]
+  inventory   Product[]
+  services    Service[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  role        Role
+  password    String
+  name        String?
+
+  ownedBusinesses Business[] @relation("BusinessOwner")
+
+  business    Business? @relation("BusinessStaff", fields: [businessId], references: [id])
+  businessId  String?
+
+  location    Location? @relation(fields: [locationId], references: [id])
+  locationId  Int?
+  
+  staffAppointments Appointment[] @relation("StaffAppointments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Client {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String?
+  phone       String?
+  location    Location @relation(fields: [locationId], references: [id])
+  locationId  Int
+  
+  appointments Appointment[]
+  
+  notes       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Appointment {
+  id          Int      @id @default(autoincrement())
+  location    Location @relation(fields: [locationId], references: [id])
+  locationId  Int
+  
+  service     Service  @relation(fields: [serviceId], references: [id])
+  serviceId   Int
+  
+  staff       User     @relation("StaffAppointments", fields: [staffId], references: [id])
+  staffId     String
+  
+  client      Client   @relation(fields: [clientId], references: [id])
+  clientId    Int
+  
+  startTime   DateTime
+  duration    Int
+  status      String // 'SCHEDULED', 'COMPLETED', 'CANCELLED'
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id        Int      @id @default(autoincrement())
+  location  Location @relation(fields: [locationId], references: [id])
+  locationId Int
+  name      String
+  category  String   @default("General")
+  duration  Int
+  price     Float
+  
+  appointments Appointment[]
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  location  Location @relation(fields: [locationId], references: [id])
+  locationId Int
+  name      String
+  sku       String?
+  price     Float
+  stock     Int      @default(0)
+}
