@@ -45,7 +45,7 @@ export default function BookingPage() {
 
     // Fetch Services
     useEffect(() => {
-        api.get("/services").then(res => {
+        api.get("/services/public").then(res => {
             setServices(res.data)
         }).catch(err => {
             console.error(err)

@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 import { BusinessService } from '../business/business.service';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Injectable()
 export class ServicesService {
@@ -10,7 +12,7 @@ export class ServicesService {
         private businessService: BusinessService
     ) { }
 
-    async create(userId: string, data: { name: string; category?: string; duration: number; price: number }) {
+    async create(userId: string, data: CreateServiceDto) {
         // 1. Find User's Business
         const business = await this.businessService.findOneByOwner(userId);
         if (!business || business.locations.length === 0) {
@@ -43,7 +45,12 @@ export class ServicesService {
             where: { locationId: { in: locationIds } },
         });
     }
-    async update(id: number, userId: string, data: { name?: string; category?: string; duration?: number; price?: number }) {
+
+    async findAllPublic() {
+        return this.prisma.service.findMany();
+    }
+
+    async update(id: number, userId: string, data: UpdateServiceDto) {
         // Verify ownership (the service belongs to a location owned by the user)
         const service = await this.prisma.service.findFirst({
             where: {
