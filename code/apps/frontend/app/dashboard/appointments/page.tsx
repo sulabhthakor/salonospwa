@@ -18,19 +18,37 @@ export default function AppointmentsPage() {
 
             <div className="grid gap-4">
                 {appointments.length === 0 ? (
-                    <p>No appointments found.</p>
+                    <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+                        <p className="text-muted-foreground">No appointments found.</p>
+                    </div>
                 ) : (
                     appointments.map(apt => (
-                        <Card key={apt.id}>
-                            <CardHeader>
-                                <CardTitle className="text-lg">
-                                    {apt.service.name} with {apt.client.name}
-                                </CardTitle>
+                        <Card key={apt.id} className="overflow-hidden">
+                            <CardHeader className="bg-slate-50 border-b py-3">
+                                <div className="flex justify-between items-center">
+                                    <div className="text-sm font-medium text-muted-foreground">
+                                        {format(new Date(apt.startTime), "PPP")}
+                                    </div>
+                                    <StatusBadge status={apt.status} />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="flex justify-between">
-                                    <span>{format(new Date(apt.startTime), "PPP p")}</span>
-                                    <span className="font-semibold text-primary uppercase">{apt.status}</span>
+                            <CardContent className="pt-4">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-lg">{apt.service?.name}</h3>
+                                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                            <span>at</span>
+                                            <span className="font-medium text-foreground">{apt.location?.name}</span>
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="font-bold text-primary">
+                                            {format(new Date(apt.startTime), "p")}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {apt.duration} mins
+                                        </div>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -38,5 +56,34 @@ export default function AppointmentsPage() {
                 )}
             </div>
         </div>
+    )
+}
+
+function StatusBadge({ status }: { status: string }) {
+    if (status === 'SCHEDULED') {
+        return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                Confirmation Pending
+            </span>
+        )
+    }
+    if (status === 'CONFIRMED') {
+        return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                Confirmed
+            </span>
+        )
+    }
+    if (status === 'REJECTED' || status === 'CANCELLED') {
+        return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                Rejected
+            </span>
+        )
+    }
+    return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            {status}
+        </span>
     )
 }

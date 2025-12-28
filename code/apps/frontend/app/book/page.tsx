@@ -38,10 +38,14 @@ export default function BookingPage() {
     const [loading, setLoading] = useState(true)
 
     // Selection State
-    const [selectedService, setSelectedService] = useState<Service | null>(null)
+    const [selectedServices, setSelectedServices] = useState<Service[]>([])
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [time, setTime] = useState<string | null>(null)
     const [isBooking, setIsBooking] = useState(false)
+
+    // Derived State
+    const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration, 0)
+    const totalPrice = selectedServices.reduce((acc, s) => acc + s.price, 0)
 
     // Fetch Services
     useEffect(() => {
@@ -56,8 +60,18 @@ export default function BookingPage() {
     const handleNext = () => setStep(s => s + 1)
     const handleBack = () => setStep(s => s - 1)
 
+    const toggleService = (service: Service) => {
+        setSelectedServices(prev => {
+            const exists = prev.find(s => s.id === service.id)
+            if (exists) {
+                return prev.filter(s => s.id !== service.id)
+            }
+            return [...prev, service]
+        })
+    }
+
     const handleBooking = async () => {
-        if (!selectedService || !date || !time) return
+        if (selectedServices.length === 0 || !date || !time) return
 
         setIsBooking(true)
         try {
@@ -66,19 +80,29 @@ export default function BookingPage() {
             const dateTime = new Date(`${dateStr}T${time}`)
 
             await api.post("/appointments", {
-                serviceId: selectedService.id,
+                serviceIds: selectedServices.map(s => s.id),
                 startTime: dateTime.toISOString()
             })
 
             toast.success("Appointment Booked!", {
-                description: "We've sent you a confirmation email."
+                description: `${selectedServices.length} services scheduled.`
             })
             router.push("/dashboard/appointments")
-        } catch (err) {
+        } catch (err: any) {
             console.error(err)
-            toast.error("Booking Failed", {
-                description: "Please try again later."
-            })
+            if (err.response?.status === 401) {
+                toast.error("Login Required", {
+                    description: "Please sign in to book an appointment.",
+                    action: {
+                        label: "Login",
+                        onClick: () => router.push("/auth/login?redirect=/book")
+                    }
+                })
+            } else {
+                toast.error("Booking Failed", {
+                    description: err.response?.data?.message || "Please try again later."
+                })
+            }
         } finally {
             setIsBooking(false)
         }
@@ -133,24 +157,30 @@ export default function BookingPage() {
                         </div>
 
                         {/* Summary Widget */}
-                        {selectedService && (
+                        {selectedServices.length > 0 && (
                             <div className="mt-auto bg-white p-4 rounded-lg border shadow-sm text-sm space-y-3">
                                 <div className="font-semibold text-foreground border-b pb-2">Booking Summary</div>
                                 <div>
-                                    <div className="text-muted-foreground text-xs">Service</div>
-                                    <div className="font-medium text-primary">{selectedService.name}</div>
+                                    <div className="text-muted-foreground text-xs">Services ({selectedServices.length})</div>
+                                    <div className="flex flex-col gap-1 mt-1">
+                                        {selectedServices.map(s => (
+                                            <div key={s.id} className="font-medium text-primary text-xs flex justify-between">
+                                                <span>{s.name}</span>
+                                                <span>₹{s.price}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                                 {date && time && (
                                     <div>
-                                        <div className="text-muted-foreground text-xs">Date & Time</div>
-                                        <div>{format(date, 'd MMM, yyyy')}</div>
-                                        <div>{time}</div>
+                                        <div className="text-muted-foreground text-xs text-right mt-2">{format(date, 'd MMM')} @ {time}</div>
                                     </div>
                                 )}
                                 <div className="pt-2 border-t flex justify-between font-bold">
                                     <span>Total</span>
-                                    <span>₹{selectedService.price}</span>
+                                    <span>₹{totalPrice}</span>
                                 </div>
+                                <div className="text-xs text-muted-foreground text-right">{totalDuration} mins</div>
                             </div>
                         )}
                     </div>
@@ -162,8 +192,8 @@ export default function BookingPage() {
                         {step === 1 && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div>
-                                    <h2 className="text-2xl font-semibold">Select a Service</h2>
-                                    <p className="text-muted-foreground">Choose from our list of premium treatments.</p>
+                                    <h2 className="text-2xl font-semibold">Select Services</h2>
+                                    <p className="text-muted-foreground">Select one or more treatments.</p>
                                 </div>
 
                                 {loading ? (
@@ -180,30 +210,36 @@ export default function BookingPage() {
                                         <div key={category} className="space-y-3">
                                             <h3 className="text-lg font-semibold text-primary/80 border-b pb-1">{category}</h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {categoryServices.map(service => (
-                                                    <Card
-                                                        key={service.id}
-                                                        className={cn(
-                                                            "cursor-pointer transition-all hover:border-primary hover:shadow-md",
-                                                            selectedService?.id === service.id ? "border-primary ring-1 ring-primary bg-primary/5" : ""
-                                                        )}
-                                                        onClick={() => setSelectedService(service)}
-                                                    >
-                                                        <CardContent className="p-5 space-y-2">
-                                                            <div className="flex justify-between items-start">
-                                                                <h3 className="font-semibold text-lg">{service.name}</h3>
-                                                                <Badge variant="secondary" className="font-bold">₹{service.price}</Badge>
-                                                            </div>
-                                                            <p className="text-sm text-muted-foreground line-clamp-2">
-                                                                {service.description || "Professional salon service."}
-                                                            </p>
-                                                            <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-                                                                <Clock className="w-3 h-3" />
-                                                                {service.duration} mins
-                                                            </div>
-                                                        </CardContent>
-                                                    </Card>
-                                                ))}
+                                                {categoryServices.map(service => {
+                                                    const isSelected = selectedServices.some(s => s.id === service.id);
+                                                    return (
+                                                        <Card
+                                                            key={service.id}
+                                                            className={cn(
+                                                                "cursor-pointer transition-all hover:border-primary hover:shadow-md",
+                                                                isSelected ? "border-primary ring-1 ring-primary bg-primary/5" : ""
+                                                            )}
+                                                            onClick={() => toggleService(service)}
+                                                        >
+                                                            <CardContent className="p-5 space-y-2">
+                                                                <div className="flex justify-between items-start">
+                                                                    <h3 className="font-semibold text-lg">{service.name}</h3>
+                                                                    <div className="flex flex-col items-end">
+                                                                        <Badge variant={isSelected ? "default" : "secondary"} className="font-bold">₹{service.price}</Badge>
+                                                                        {isSelected && <Check className="w-4 h-4 text-primary mt-1" />}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                                                    {service.description || "Professional salon service."}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    {service.duration} mins
+                                                                </div>
+                                                            </CardContent>
+                                                        </Card>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     ))
@@ -216,7 +252,7 @@ export default function BookingPage() {
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div>
                                     <h2 className="text-2xl font-semibold">Choose Date & Time</h2>
-                                    <p className="text-muted-foreground">Select a convenient slot for your appointment.</p>
+                                    <p className="text-muted-foreground">Select a start time for your session.</p>
                                 </div>
 
                                 <div className="flex flex-col lg:flex-row gap-8">
@@ -232,7 +268,7 @@ export default function BookingPage() {
                                     <div className="flex-1">
                                         <h3 className="font-medium mb-3 flex items-center gap-2">
                                             <Clock className="w-4 h-4 text-primary" />
-                                            Available Slots
+                                            Available Slots (Total: {totalDuration} mins)
                                         </h3>
                                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                             {TIME_SLOTS.map(slot => (
@@ -255,7 +291,7 @@ export default function BookingPage() {
                         )}
 
                         {/* Step 3: Review */}
-                        {step === 3 && selectedService && (
+                        {step === 3 && selectedServices.length > 0 && (
                             <div className="max-w-lg mx-auto w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div className="text-center space-y-2">
                                     <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
@@ -267,8 +303,16 @@ export default function BookingPage() {
 
                                 <div className="bg-slate-50 p-6 rounded-xl border space-y-4">
                                     <div className="flex justify-between items-center pb-4 border-b">
-                                        <div className="text-sm font-medium text-muted-foreground">Service</div>
-                                        <div className="font-semibold">{selectedService.name}</div>
+                                        <div className="text-sm font-medium text-muted-foreground">Services</div>
+                                        <div className="text-right">
+                                            {selectedServices.map(s => (
+                                                <div key={s.id} className="font-semibold">{s.name}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pb-4 border-b">
+                                        <div className="text-sm font-medium text-muted-foreground">Duration</div>
+                                        <div className="font-semibold">{totalDuration} mins</div>
                                     </div>
                                     <div className="flex justify-between items-center pb-4 border-b">
                                         <div className="text-sm font-medium text-muted-foreground">Date</div>
@@ -286,7 +330,7 @@ export default function BookingPage() {
                                     </div>
                                     <div className="flex justify-between items-center pt-2">
                                         <div className="font-bold text-lg">Total</div>
-                                        <div className="font-bold text-2xl text-primary">₹{selectedService.price}</div>
+                                        <div className="font-bold text-2xl text-primary">₹{totalPrice}</div>
                                     </div>
                                 </div>
                             </div>
@@ -307,7 +351,7 @@ export default function BookingPage() {
                             {step < 3 ? (
                                 <Button
                                     onClick={handleNext}
-                                    disabled={(step === 1 && !selectedService) || (step === 2 && (!date || !time))}
+                                    disabled={(step === 1 && selectedServices.length === 0) || (step === 2 && (!date || !time))}
                                 >
                                     Next Step
                                     <ChevronRight className="w-4 h-4 ml-2" />

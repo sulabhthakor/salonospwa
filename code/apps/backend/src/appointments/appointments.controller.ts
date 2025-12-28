@@ -14,22 +14,19 @@ export class AppointmentsController {
     @Post()
     async create(@Request() req, @Body() body: any) {
         const userId = req.user.id;
-        // Find or Create the 'Client' entity for this User to link to the Appointment
-        // Since our schema separates Auth User from CRM Client.
-        // MVP Strategy: Check if a Client exists with this User's email. If not, create one linked to the target Location? 
-        // Wait, Client is linked to a Location.
-        // When booking, the user picks a Service -> Service has Location.
-        // So we create the Client record at that Location.
 
-        if (!body.serviceId) throw new BadRequestException('Service ID required');
+        // Handle single or multiple services
+        const serviceIds = body.serviceIds || (body.serviceId ? [body.serviceId] : []);
+        if (serviceIds.length === 0) throw new BadRequestException('At least one Service ID is required');
 
-        const service = await this.prisma.service.findUnique({ where: { id: body.serviceId } });
-        if (!service) throw new BadRequestException('Invalid Service');
+        // Verify first service to get location and create client
+        const firstService = await this.prisma.service.findUnique({ where: { id: serviceIds[0] } });
+        if (!firstService) throw new BadRequestException('Invalid Service');
 
         let client = await this.prisma.client.findFirst({
             where: {
                 email: req.user.email,
-                locationId: service.locationId
+                locationId: firstService.locationId
             }
         });
 
@@ -38,16 +35,16 @@ export class AppointmentsController {
                 data: {
                     name: req.user.name || 'Unknown',
                     email: req.user.email,
-                    locationId: service.locationId
+                    locationId: firstService.locationId
                 }
             });
         }
 
-        return this.appointmentsService.create(client.id, body);
+        return this.appointmentsService.create(client.id, { ...body, serviceIds });
     }
 
     @Get()
     findAll(@Request() req) {
-        return this.appointmentsService.findAllForUser(req.user.id, req.user.role);
+        return this.appointmentsService.findAllForUser(req.user.id, req.user.role, req.user.email);
     }
 }

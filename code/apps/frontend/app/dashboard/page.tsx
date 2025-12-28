@@ -239,7 +239,7 @@ function ClientDashboard({ user, router }: any) {
 
     useEffect(() => {
         // Fetch only user's appointments
-        api.get("/appointments/me").then(res => {
+        api.get("/appointments").then(res => {
             setMyAppointments(res.data)
         }).catch(err => {
             // Fallback if endpoint doesn't exist, though it should ideally

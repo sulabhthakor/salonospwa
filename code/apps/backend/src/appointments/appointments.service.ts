@@ -6,101 +6,103 @@ import { Prisma } from '@prisma/client';
 export class AppointmentsService {
     constructor(private prisma: PrismaService) { }
 
-    async create(clientId: number, data: { serviceId: number; startTime: string; staffId?: string }) {
-        // 1. Get Service details (to know duration)
-        const service = await this.prisma.service.findUnique({
-            where: { id: data.serviceId }
-        });
-        if (!service) throw new NotFoundException('Service not found');
+    async create(clientId: number, data: { serviceIds: number[]; startTime: string; staffId?: string }) {
+        const createdAppointments = [];
+        let currentStartTime = new Date(data.startTime);
 
-        // 2. Determine Staff
-        let staffId = data.staffId;
-        if (!staffId) {
-            // Auto-assign: Find the Business Owner/Staff associated with this service's location
-            // For simplicity v1: Find the owner of the service's location
-            const location = await this.prisma.location.findUnique({
-                where: { id: service.locationId },
-                include: { business: true }
+        for (const serviceId of data.serviceIds) {
+            // 1. Get Service details
+            const service = await this.prisma.service.findUnique({
+                where: { id: serviceId }
             });
-            if (!location) throw new NotFoundException('Location not found');
+            if (!service) throw new NotFoundException(`Service ${serviceId} not found`);
 
-            // Assign to the Business Owner
-            const owner = await this.prisma.user.findFirst({
-                where: {
-                    businessId: location.businessId,
-                    role: 'OWNER'
+            // 2. Determine Staff (Re-evaluate for each service if needed, but usually same staff or optimized)
+            // For MVP: Auto-assign same staff or owner for all for consistency
+            // Logic: If data.staffId provided, use it. Else find owner of location.
+            let staffId = data.staffId;
+            if (!staffId) {
+                const location = await this.prisma.location.findUnique({
+                    where: { id: service.locationId },
+                    include: { business: true }
+                });
+                if (!location) throw new NotFoundException('Location not found');
+
+                // Find the Business and its Owner directly
+                const business = await this.prisma.business.findUnique({
+                    where: { id: location.businessId },
+                    include: { owner: true }
+                });
+
+                if (!business || !business.owner) throw new NotFoundException('Business Owner not found');
+                staffId = business.owner.id;
+            }
+
+            // 3. Create Appointment
+            const appointment = await this.prisma.appointment.create({
+                data: {
+                    startTime: currentStartTime,
+                    duration: service.duration,
+                    status: 'SCHEDULED',
+                    service: { connect: { id: service.id } },
+                    staff: { connect: { id: staffId } },
+                    client: { connect: { id: clientId } },
+                    location: { connect: { id: service.locationId } }
                 }
             });
 
-            if (!owner) throw new NotFoundException('Business Owner not found');
-            staffId = owner.id;
+            createdAppointments.push(appointment);
+
+            // Update start time for next service
+            // Add duration (minutes) to current time
+            currentStartTime = new Date(currentStartTime.getTime() + service.duration * 60000);
         }
 
-        // 3. Check Availability (Basic: No overlap for this staff)
-        const start = new Date(data.startTime);
-        const end = new Date(start.getTime() + service.duration * 60000);
-
-        const conflict = await this.prisma.appointment.findFirst({
-            where: {
-                staffId: staffId,
-                OR: [
-                    { startTime: { lte: start }, duration: { gt: 0 } }, // Overlap logic needed? 
-                    // A simple overlaps check: (StartA <= EndB) and (EndA >= StartB)
-                    // Prisma doesn't have "EndA", we have start + duration.
-                    // Let's do a raw check or fetch colliding apps. 
-                    // For MVP: Fetch appointments around that time and check in JS or simple query.
-                ],
-                // improving query:
-                startTime: {
-                    gte: new Date(start.getTime() - 24 * 60 * 60 * 1000), // look at that day
-                    lte: new Date(start.getTime() + 24 * 60 * 60 * 1000)
-                }
-            }
-        });
-
-        // Better conflict check in JS for now to handle duration calc
-        // In a real app, use Postgres TsRange or efficient query
-
-        // 4. Create Client Record if user is generic? 
-        // In our schema, 'Client' is a separate model from 'User'.
-        // Use the `clientId` passed in (which corresponds to Client model id, NOT User model id?)
-        // Wait, our Auth is 'User'. 'Client' model seems to be for "Business's Client List".
-        // If a logged-in 'User' (Role: CLIENT) books, we should probably link them.
-        // Let's check Schema: Appointment has `clientId Int` and `client Client`. 
-        // This implies Appointments are linked to the "CRM Client", not directly the "Auth User".
-        // We need to Find-or-Create a CRM Client for the Auth User.
-
-        // Let's first ensure a CRM Client exists for this User (if they are a User)
-        // Actually, let's keep it simple: We need a Client ID. 
-        // If endpoints calls `create`, it usually comes from a User.
-        // We'll handle this mapping in the Controller or here.
-
-        return this.prisma.appointment.create({
-            data: {
-                startTime: start,
-                duration: service.duration,
-                status: 'SCHEDULED',
-                service: { connect: { id: service.id } },
-                staff: { connect: { id: staffId } },
-                client: { connect: { id: clientId } },
-                location: { connect: { id: service.locationId } }
-            }
-        });
+        return createdAppointments;
     }
 
-    async findAllForUser(userId: string, role: string) {
+    async findAllForUser(userId: string, role: string, email?: string) {
         if (role === 'OWNER') {
+            const business = await this.prisma.business.findFirst({
+                where: { ownerId: userId }
+            });
+
+            if (!business) return []; // Should not happen for Owner
+
+            // Find all locations for this business
+            const locations = await this.prisma.location.findMany({
+                where: { businessId: business.id },
+                select: { id: true }
+            });
+            const locationIds = locations.map(l => l.id);
+
             return this.prisma.appointment.findMany({
                 where: {
-                    staffId: userId // Assuming Owner is Staff for now
+                    locationId: { in: locationIds }
                 },
-                include: { service: true, client: true }
+                include: { service: true, client: true },
+                orderBy: { startTime: 'desc' }
             })
-        } else {
-            // For Client Users, we need to find their linked Client ID?
-            // This schema separation (User vs Client) is slightly complex.
-            // For MVP, let's assume we look up by some implicit link or just return empty for now if not linked.
-            return [];
+        } else if (role === 'CLIENT') {
+            if (!email) return [];
+
+            // Find all Client profiles with this email
+            const clients = await this.prisma.client.findMany({
+                where: { email: email },
+                select: { id: true }
+            });
+
+            const clientIds = clients.map(c => c.id);
+
+            return this.prisma.appointment.findMany({
+                where: {
+                    clientId: { in: clientIds }
+                },
+                include: { service: true, client: true, location: true }, // Include location for context
+                orderBy: { startTime: 'desc' }
+            });
         }
+
+        return [];
     }
 }
