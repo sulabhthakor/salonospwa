@@ -1,73 +1,36 @@
-# SalonOS PWA 💇‍♀️
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A multi-tenant Salon & Spa SaaS Platform built with Next.js, NestJS, and Prisma.
+## Getting Started
 
-## 🚀 Local Development
+First, run the development server:
 
-### Prerequisites
-*   Node.js v20.x
-*   pnpm (`npm install -g pnpm`)
-*   PostgreSQL (Local or Docker)
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-### Setup Instructions
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-1.  **Install Dependencies**
-    ```bash
-    pnpm install
-    ```
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-2.  **Environment Setup**
-    *   Copy `.env.example` to `.env` in `apps/backend` (if not present).
-    *   Update `DATABASE_URL` to point to your Postgres instance.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-3.  **Database Migration & Seeding**
-    ```bash
-    # Run migrations
-    cd apps/backend
-    npx prisma migrate dev
+## Learn More
 
-    # Seed sample data (Owner, Client, Services)
-    npx prisma db seed
-    ```
+To learn more about Next.js, take a look at the following resources:
 
-4.  **Start Development Server**
-    Run both frontend and backend in one command:
-    ```bash
-    # From root directory
-    pnpm dev
-    ```
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-    *   **Frontend**: [http://localhost:3000](http://localhost:3000)
-    *   **Backend**: [http://localhost:3001](http://localhost:3001)
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## 🐳 Docker Hosting
+## Deploy on Vercel
 
-The project is containerized for production configuration.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-### Deployment with Docker Compose
-
-1.  **Build and Run**
-    ```bash
-    docker-compose up --build
-    ```
-
-2.  **Access**
-    *   Application: [http://localhost:3000](http://localhost:3000)
-    *   API: [http://localhost:3001](http://localhost:3001)
-
-### Dockerfile Details
-
-*   **Backend**: Uses `node:20-alpine`. Builds utilizing `nest build` and runs `dist/main.js`.
-*   **Frontend**: Uses `node:20-alpine`. Builds Next.js for production and using `npm start`.
-
-## 🛠 Troubleshooting
-
-### Network Error / Backend Not Starting
-If the backend fails to start or you see `MODULE_NOT_FOUND`:
-*   The project uses `ts-node` for local dev to bypass build caching issues.
-*   Ensure `apps/backend/tsconfig.json` includes `"include": ["src/**/*"]`.
-*   To force a clean state: `rm -rf apps/backend/dist apps/backend/tsconfig.tsbuildinfo`.
-
-### Hydration Errors
-*   Occasional hydration mismatch warnings may appear due to browser extensions (Grammarly, etc.).
-*   The `<body>` tag has `suppressHydrationWarning` enabled to mitigate this.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
