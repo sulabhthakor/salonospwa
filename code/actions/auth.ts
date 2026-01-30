@@ -53,7 +53,7 @@ export async function register(prevState: any, formData: FormData) {
     } catch (error) {
         console.error('Registration error:', error);
         if (error instanceof z.ZodError) {
-            return { error: error.errors[0].message };
+            return { error: (error as any).errors[0].message };
         }
         return { error: 'Something went wrong during registration' };
     }

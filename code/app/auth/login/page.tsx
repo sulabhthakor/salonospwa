@@ -78,61 +78,51 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background relative overflow-hidden">
-            {/* Background Blob */}
-            <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
-
-            <div className="w-full max-w-sm z-10 animate-fade-in">
-                <div className="flex flex-col gap-6 glass-card p-8 rounded-2xl">
-                    <div className="flex flex-col items-center text-center">
-                        <Link href="/" className="text-2xl font-bold text-primary mb-2">SalonOS</Link>
-                        <h1 className="text-2xl font-bold">Welcome back</h1>
-                        <p className="text-balance text-muted-foreground text-sm">
-                            Login to your account
-                        </p>
-                    </div>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <div className="grid gap-2">
-                                        <FormLabel>Email</FormLabel>
-                                        <Input placeholder="m@example.com" {...field} className="bg-white/50 dark:bg-black/20" />
-                                        <FormMessage />
-                                    </div>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <div className="grid gap-2">
-                                        <div className="flex items-center justify-between">
-                                            <FormLabel>Password</FormLabel>
-                                            <a href="#" className="text-xs text-muted-foreground hover:text-primary">Forgot?</a>
-                                        </div>
-                                        <Input type="password" {...field} className="bg-white/50 dark:bg-black/20" />
-                                        <FormMessage />
-                                    </div>
-                                )}
-                            />
-                            {error && <div className="text-sm text-red-500 text-center">{error}</div>}
-                            <Button type="submit" className="w-full rounded-full shadow-md hover:shadow-lg transition-all" disabled={isLoading}>
-                                {isLoading ? "Signing in..." : "Sign in"}
-                            </Button>
-                        </form>
-                    </Form>
-                    <div className="text-center text-sm text-muted-foreground">
-                        Don&apos;t have an account?{" "}
-                        <Link href="/auth/register" className="text-primary font-medium hover:underline">
-                            Sign up
-                        </Link>
-                    </div>
-                </div>
+        <div className="flex flex-col gap-6 animate-fade-in">
+            <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl font-bold">Welcome back</h1>
+                <p className="text-balance text-muted-foreground text-sm">
+                    Login to your account
+                </p>
+            </div>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                            <div className="grid gap-2">
+                                <FormLabel>Email</FormLabel>
+                                <Input placeholder="m@example.com" {...field} />
+                                <FormMessage />
+                            </div>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                            <div className="grid gap-2">
+                                <div className="flex items-center justify-between">
+                                    <FormLabel>Password</FormLabel>
+                                    <a href="#" className="text-xs text-muted-foreground hover:text-primary">Forgot?</a>
+                                </div>
+                                <Input type="password" placeholder="******" {...field} />
+                                <FormMessage />
+                            </div>
+                        )}
+                    />
+                    {error && <div className="text-sm text-red-500 text-center">{error}</div>}
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? "Signing in..." : "Sign in"}
+                    </Button>
+                </form>
+            </Form>
+            <div className="text-center text-sm text-muted-foreground">
+                Don&apos;t have an account?{" "}
+                <Link href="/auth/register" className="text-primary font-medium hover:underline">
+                    Sign up
+                </Link>
             </div>
         </div>
     )

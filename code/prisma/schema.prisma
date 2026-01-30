@@ -55,6 +55,7 @@ model User {
   role        Role
   password    String
   name        String?
+  isActive    Boolean @default(true)
 
   ownedBusinesses Business[] @relation("BusinessOwner")
 
@@ -104,8 +105,24 @@ model Appointment {
   duration    Int
   status      String // 'SCHEDULED', 'COMPLETED', 'CANCELLED'
   
+  payment     Payment?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  amount          Float
+  currency        String   @default("inr")
+  status          String   // 'PENDING', 'COMPLETED', 'FAILED'
+  stripePaymentId String?  @unique
+  
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId Int @unique
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Service {
