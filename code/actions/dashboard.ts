@@ -19,6 +19,13 @@ export async function getDashboardStats() {
 
         const businessId = user.business.id;
 
+        // Get primary location ID for booking link
+        const firstLocation = await prisma.location.findFirst({
+            where: { businessId },
+            select: { id: true }
+        });
+        const locationId = firstLocation?.id;
+
         // 2. Fetch Basic Counts
         const [totalClients, activeServices, appointmentsChange] = await Promise.all([
             // Clients
@@ -118,7 +125,9 @@ export async function getDashboardStats() {
                 todayAppointments: appointmentsChange,
                 totalRevenue,
                 chartData,
-                recentAppointments
+                recentAppointments,
+                businessId,
+                locationId
             }
         };
 

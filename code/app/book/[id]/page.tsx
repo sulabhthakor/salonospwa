@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
@@ -10,18 +10,19 @@ import { Check, ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, Stor
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { getPublicServices } from "@/actions/services"
+import { getSalonById } from "@/actions/salons"
 
 import { createAppointment } from "@/actions/appointments"
-import { getBookingStaff } from "@/actions/staff"
 import { createPaymentIntent } from "@/actions/payments"
 
 import { loadStripe } from "@stripe/stripe-js"
 import { Elements } from "@stripe/react-stripe-js"
 import { CheckoutForm } from "@/components/booking/checkout-form"
+import { AddOnSelector } from "@/components/booking/addon-selector"
+import { GroupSizeSelector } from "@/components/booking/group-size-selector"
+import { getAvailableSlots } from "@/actions/availability"
 import { SiteHeader } from "@/components/site-header"
 
-// Initialize Stripe outside component
 // Initialize Stripe outside component
 const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder';
 const stripePromise = loadStripe(stripeKey);
@@ -40,47 +41,139 @@ type Service = {
     description?: string
 }
 
-const TIME_SLOTS = [
-    "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
-    "15:00", "15:30", "16:00", "16:30", "17:00"
-]
+type AddOn = {
+    id: number
+    name: string
+    price: number
+    durationChange: number
+    applicableServices?: { serviceId: number }[]
+}
 
 export default function BookingPage() {
     const router = useRouter()
+    const params = useParams()
+    const searchParams = useSearchParams()
+    const salonId = params.id ? parseInt(params.id as string) : null
 
     // State
     const [step, setStep] = useState(1)
     const [services, setServices] = useState<Service[]>([])
     const [staffMembers, setStaffMembers] = useState<{ id: string, name: string | null, role: string }[]>([])
     const [loading, setLoading] = useState(true)
+    const [salonName, setSalonName] = useState<string>("")
 
     // Selection State
     const [selectedServices, setSelectedServices] = useState<Service[]>([])
+    const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([])
+    const [guests, setGuests] = useState(1)
     const [selectedStaff, setSelectedStaff] = useState<string | null>(null) // null = 'Any Professional'
     const [date, setDate] = useState<Date | undefined>(new Date())
     const [time, setTime] = useState<string | null>(null)
     const [isBooking, setIsBooking] = useState(false)
     const [clientSecret, setClientSecret] = useState<string | null>(null)
+    const [availableSlots, setAvailableSlots] = useState<{ time: string, available: boolean }[]>([])
+    const [slotsLoading, setSlotsLoading] = useState(false)
 
     // Derived State
-    const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration, 0)
-    const totalPrice = selectedServices.reduce((acc, s) => acc + s.price, 0)
+    const addOnDuration = selectedAddOns.reduce((acc, a) => acc + a.durationChange, 0)
+    const addOnPrice = selectedAddOns.reduce((acc, a) => acc + a.price, 0)
+    const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration, 0) + addOnDuration
+    const totalPrice = (selectedServices.reduce((acc, s) => acc + s.price, 0) + addOnPrice) * guests
 
     useEffect(() => {
-        Promise.all([
-            getPublicServices(),
-            getBookingStaff()
-        ]).then(([servicesRes, staffRes]) => {
-            if (servicesRes.services) setServices(servicesRes.services)
-            if (staffRes.staff) setStaffMembers(staffRes.staff)
-        }).catch(err => {
-            console.error(err)
-            toast.error("Failed to load booking data")
-        }).finally(() => setLoading(false))
-    }, [])
+        if (!salonId || isNaN(salonId)) {
+            toast.error("Invalid salon ID")
+            setLoading(false)
+            return
+        }
 
-    const handleNext = () => setStep(s => s + 1)
+        getSalonById(salonId)
+            .then((res) => {
+                if (res.success && res.data) {
+                    setServices(res.data.services.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        category: s.category || "General",
+                        duration: s.duration,
+                        price: s.price,
+                        // description: s.description -- Field not in DB yet
+                    })))
+
+                    setStaffMembers(res.data.tenantUsers
+                        .filter(u => u.role !== 'CLIENT')
+                        .map(u => ({
+                            id: u.id,
+                            name: u.name,
+                            role: u.role
+                        }))
+                    )
+
+                    setSalonName(res.data.name)
+                } else {
+                    toast.error("Failed to load salon details")
+                }
+            })
+            .catch(err => {
+                console.error(err)
+                toast.error("Error loading salon details")
+            })
+            .finally(() => setLoading(false))
+    }, [salonId])
+
+    useEffect(() => {
+        if (date && selectedServices.length > 0) {
+            setSlotsLoading(true)
+            getAvailableSlots({
+                serviceIds: selectedServices.map(s => s.id),
+                addOnIds: selectedServices.map(s => {
+                    // Find add-ons applicable to this service
+                    return selectedAddOns
+                        .filter(a => a.applicableServices?.some(as => as.serviceId === s.id))
+                        .map(a => a.id)
+                }),
+                date: date,
+                staffId: selectedStaff || undefined,
+                guests: guests
+            }).then(res => {
+                if (res.slots) {
+                    setAvailableSlots(res.slots)
+                } else {
+                    setAvailableSlots([])
+                }
+            }).finally(() => setSlotsLoading(false))
+        } else {
+            setAvailableSlots([])
+        }
+    }, [date, selectedServices, selectedStaff, guests, selectedAddOns])
+
+    // Pre-select service from URL
+    useEffect(() => {
+        const serviceIdParam = searchParams.get('serviceId')
+        if (serviceIdParam && services.length > 0) {
+            const serviceId = parseInt(serviceIdParam)
+            if (!isNaN(serviceId)) {
+                const serviceToSelect = services.find(s => s.id === serviceId)
+                if (serviceToSelect) {
+                    // Check if already selected to avoid infinite loop or duplicates if strict mode
+                    setSelectedServices(prev => {
+                        if (prev.some(s => s.id === serviceToSelect.id)) return prev
+                        return [...prev, serviceToSelect]
+                    })
+                }
+            }
+        }
+    }, [searchParams, services])
+
+    // Payment Method State
+    const [paymentMethod, setPaymentMethod] = useState<'online' | 'venue'>('online')
+
+    const handleNext = () => {
+        if (step === 4 && paymentMethod === 'venue') {
+            handleBooking()
+        } else {
+            setStep(s => s + 1)
+        }
+    }
     const handleBack = () => setStep(s => s - 1)
 
     const toggleService = (service: Service) => {
@@ -96,9 +189,10 @@ export default function BookingPage() {
     const handleBooking = async (paymentIntentId?: string) => {
         if (selectedServices.length === 0 || !date || !time) return
 
-        // If we are on Review Step (4) and no payment yet, initiate Payment Step (5)
-        // Check if paymentIntentId is a string, because onClick defaults to Event object
-        if ((!paymentIntentId || typeof paymentIntentId !== 'string') && step === 4) {
+        // If we are on Review Step (4) and choosing online payment, initiate Payment Step (5)
+        if (step === 4 && paymentMethod === 'online' && !paymentIntentId) {
+            // Check if paymentIntentId is a string, because onClick defaults to Event object
+            // Logic moved to handleNext
             setLoading(true)
             const res = await createPaymentIntent(totalPrice)
             setLoading(false)
@@ -119,6 +213,12 @@ export default function BookingPage() {
 
             const res = await createAppointment({
                 serviceIds: selectedServices.map(s => s.id),
+                addOnIds: selectedServices.map(s => {
+                    // Find add-ons applicable to this service
+                    return selectedAddOns
+                        .filter(a => a.applicableServices?.some(as => as.serviceId === s.id))
+                        .map(a => a.id)
+                }),
                 startTime: dateTime.toISOString(),
                 staffId: selectedStaff || undefined,
                 paymentIntentId: typeof paymentIntentId === 'string' ? paymentIntentId : undefined
@@ -130,7 +230,7 @@ export default function BookingPage() {
                         description: "Please sign in to book an appointment.",
                         action: {
                             label: "Login",
-                            onClick: () => router.push("/auth/login?redirect=/book")
+                            onClick: () => router.push(`/auth/login?redirect=/book/${salonId}`)
                         }
                     })
                 } else {
@@ -172,6 +272,14 @@ export default function BookingPage() {
         return acc
     }, {} as Record<string, Service[]>)
 
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    }
+
+    if (!salonId || isNaN(salonId)) {
+        return <div className="min-h-screen flex items-center justify-center">Invalid Salon ID</div>
+    }
+
     return (
         <div className="min-h-screen bg-gray-50/50 dark:bg-black/90 relative overflow-hidden">
             <SiteHeader />
@@ -185,13 +293,15 @@ export default function BookingPage() {
                     {/* Header & Steps */}
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in">
                         <div className="text-center md:text-left">
-                            <h1 className="text-3xl font-bold tracking-tight text-foreground">Book Appointment</h1>
+                            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                                Book Appointment <span className="text-primary block text-lg font-normal mt-1">{salonName}</span>
+                            </h1>
                             <p className="text-muted-foreground">Select a service and find a time.</p>
                         </div>
 
                         {/* Horizontal Steps */}
                         <div className="flex items-center bg-white/40 dark:bg-black/40 backdrop-blur-sm p-2 rounded-full border border-white/10 shadow-sm overflow-x-auto">
-                            {['Service', 'Specialist', 'Date & Time', 'Review', 'Payment'].map((label, idx) => {
+                            {['Service', 'Specialist', 'Date & Time', 'Review', paymentMethod === 'online' ? 'Payment' : 'Confirm'].map((label, idx) => {
                                 const stepNum = idx + 1
                                 const isActive = step === stepNum
                                 const isCompleted = step > stepNum
@@ -209,7 +319,7 @@ export default function BookingPage() {
                                             {isCompleted ? <Check className="w-3 h-3" /> : stepNum}
                                         </div>
                                         <span className={cn("hidden sm:inline", !isActive && !isCompleted && "opacity-70")}>{label}</span>
-                                        {idx < 2 && <ChevronRight className="w-4 h-4 ml-2 text-muted-foreground/30" />}
+                                        {idx < 4 && <ChevronRight className="w-4 h-4 ml-2 text-muted-foreground/30" />}
                                     </div>
                                 )
                             })}
@@ -229,6 +339,12 @@ export default function BookingPage() {
                                             <h2 className="text-2xl font-semibold">Select Services</h2>
                                             <p className="text-muted-foreground">Choose from our exclusive treatments.</p>
                                         </div>
+
+                                        <GroupSizeSelector
+                                            value={guests}
+                                            onChange={setGuests}
+                                            className="bg-white dark:bg-zinc-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800"
+                                        />
 
                                         {/* Horizontal Category Scroll */}
                                         {!loading && (
@@ -299,6 +415,17 @@ export default function BookingPage() {
                                                 </div>
                                             ))
                                         )}
+
+                                        {/* Add-On Selection */}
+                                        {selectedServices.length > 0 && (
+                                            <div className="pt-6 border-t border-black/5 dark:border-white/5">
+                                                <AddOnSelector
+                                                    serviceIds={selectedServices.map(s => s.id)}
+                                                    selectedAddOns={selectedAddOns}
+                                                    onAddOnsChange={setSelectedAddOns}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -367,7 +494,11 @@ export default function BookingPage() {
                                                         selected={date}
                                                         onSelect={setDate}
                                                         className="rounded-md flex justify-center w-full"
-                                                        disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
+                                                        disabled={(date) => {
+                                                            const today = new Date();
+                                                            today.setHours(0, 0, 0, 0);
+                                                            return date < today || date < new Date("1900-01-01");
+                                                        }}
                                                     />
                                                 </div>
                                             </div>
@@ -377,26 +508,38 @@ export default function BookingPage() {
                                                     {date && <span className="text-sm text-muted-foreground">{format(date, 'EEEE, d MMMM')}</span>}
                                                 </h3>
                                                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                                                    {TIME_SLOTS.map(slot => (
-                                                        <Button
-                                                            key={slot}
-                                                            variant={time === slot ? "default" : "outline"}
-                                                            onClick={() => setTime(slot)}
-                                                            className={cn(
-                                                                "w-full transition-all",
-                                                                time === slot ? "bg-primary text-primary-foreground shadow-md scale-105" : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-gray-800 hover:border-primary hover:bg-gray-50 dark:hover:bg-zinc-800 text-foreground"
-                                                            )}
-                                                        >
-                                                            {slot}
-                                                        </Button>
-                                                    ))}
+                                                    {slotsLoading ? (
+                                                        <div className="col-span-full py-8 text-center text-muted-foreground animate-pulse">
+                                                            Checking availability...
+                                                        </div>
+                                                    ) : availableSlots.length === 0 ? (
+                                                        <div className="col-span-full py-8 text-center text-muted-foreground">
+                                                            No slots available for this date.
+                                                        </div>
+                                                    ) : (
+                                                        availableSlots.map(slot => (
+                                                            <Button
+                                                                key={slot.time}
+                                                                variant={time === slot.time ? "default" : "outline"}
+                                                                onClick={() => setTime(slot.time)}
+                                                                disabled={!slot.available}
+                                                                className={cn(
+                                                                    "w-full transition-all",
+                                                                    time === slot.time ? "bg-primary text-primary-foreground shadow-md scale-105" : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-gray-800 hover:border-primary hover:bg-gray-50 dark:hover:bg-zinc-800 text-foreground",
+                                                                    !slot.available && "opacity-50 cursor-not-allowed bg-gray-100 hover:bg-gray-100 dark:bg-zinc-800"
+                                                                )}
+                                                            >
+                                                                {slot.time}
+                                                            </Button>
+                                                        ))
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 4: Review */}
+                                {/* Step 4: Review & Payment Selection */}
                                 {step === 4 && selectedServices.length > 0 && (
                                     <div className="max-w-xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 py-6">
                                         <div className="text-center space-y-2">
@@ -404,14 +547,39 @@ export default function BookingPage() {
                                                 <CalendarIcon className="w-10 h-10" />
                                             </div>
                                             <h2 className="text-3xl font-bold">Ready to Book?</h2>
-                                            <p className="text-muted-foreground text-lg">Please confirm your details below.</p>
+                                            <p className="text-muted-foreground text-lg">Select a payment method to confirm.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div
+                                                onClick={() => setPaymentMethod('online')}
+                                                className={cn(
+                                                    "cursor-pointer rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:bg-gray-50 dark:hover:bg-zinc-800 text-center",
+                                                    paymentMethod === 'online' ? "border-primary ring-1 ring-primary bg-primary/5" : "border-gray-200 dark:border-gray-800"
+                                                )}
+                                            >
+                                                <CreditCard className="w-8 h-8 text-primary" />
+                                                <div className="font-bold">Pay Online</div>
+                                                <div className="text-xs text-muted-foreground">Secure payment via Stripe</div>
+                                            </div>
+                                            <div
+                                                onClick={() => setPaymentMethod('venue')}
+                                                className={cn(
+                                                    "cursor-pointer rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:bg-gray-50 dark:hover:bg-zinc-800 text-center",
+                                                    paymentMethod === 'venue' ? "border-primary ring-1 ring-primary bg-primary/5" : "border-gray-200 dark:border-gray-800"
+                                                )}
+                                            >
+                                                <Store className="w-8 h-8 text-primary" />
+                                                <div className="font-bold">Pay at Venue</div>
+                                                <div className="text-xs text-muted-foreground">Pay after service at location</div>
+                                            </div>
                                         </div>
 
                                         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg p-4 text-sm text-blue-800 dark:text-blue-300">
                                             <p className="flex gap-2">
                                                 <Store className="w-4 h-4 mt-0.5 shrink-0" />
                                                 <span>
-                                                    Booking for <strong>Elite Salon & Spa</strong>.
+                                                    Booking for <strong>{salonName}</strong>.
                                                     You will receive a confirmation email shortly after booking.
                                                     Please arrive 10 minutes early.
                                                 </span>
@@ -420,7 +588,7 @@ export default function BookingPage() {
                                     </div>
                                 )}
 
-                                {/* Step 5: Payment */}
+                                {/* Step 5: Payment (Only if Online) */}
                                 {step === 5 && clientSecret && (
                                     <div className="max-w-xl mx-auto w-full space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 py-6">
                                         <div className="text-center space-y-2 mb-6">
@@ -462,9 +630,18 @@ export default function BookingPage() {
                                             <ChevronRight className="w-4 h-4 ml-2" />
                                         </Button>
                                     ) : (
-                                        <Button onClick={() => handleBooking()} disabled={isBooking} size="lg" className="rounded-full px-10 shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all font-bold text-lg animate-pulse">
-                                            {isBooking ? "Processing..." : (step === 4 ? "Proceed to Payment" : "Checking...")}
-                                        </Button>
+                                        step === 4 && paymentMethod === 'venue' ? (
+                                            <Button onClick={() => handleBooking()} disabled={isBooking} size="lg" className="rounded-full px-10 shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all font-bold text-lg animate-pulse">
+                                                {isBooking ? "Booking..." : "Confirm Booking"}
+                                            </Button>
+                                        ) : step === 4 ? (
+                                            <Button onClick={handleNext} size="lg" className="rounded-full px-10 shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all font-bold text-lg">
+                                                Proceed to Payment
+                                            </Button>
+                                        ) : (
+                                            /* Hidden because CheckoutForm handles submit, but keeping just in case */
+                                            <div />
+                                        )
                                     )}
                                 </div>
                             </div>

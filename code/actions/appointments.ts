@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getSession } from './auth';
 
-export async function createAppointment(data: { serviceIds: number[]; startTime: string; staffId?: string; paymentIntentId?: string }) {
+export async function createAppointment(data: { serviceIds: number[]; addOnIds?: number[][]; startTime: string; staffId?: string; paymentIntentId?: string }) {
     try {
         const session = await getSession();
         if (!session) {
@@ -46,65 +46,138 @@ export async function createAppointment(data: { serviceIds: number[]; startTime:
             });
         }
 
-        for (const serviceId of data.serviceIds) {
+        for (const [index, serviceId] of data.serviceIds.entries()) {
             // 1. Get Service details
             const service = await prisma.service.findUnique({
                 where: { id: serviceId }
             });
 
-            if (!service) {
-                return { error: `Service ${serviceId} not found` };
+            if (!service) return { error: `Service ${serviceId} not found` };
+
+            // 1b. Get Add-Ons details to calculate duration bonus
+            const serviceAddOnIds = data.addOnIds?.[index] || [];
+            let durationBonus = 0;
+            if (serviceAddOnIds.length > 0) {
+                const addOns = await prisma.addOn.findMany({
+                    where: { id: { in: serviceAddOnIds } }
+                });
+                durationBonus = addOns.reduce((sum, a) => sum + a.durationChange, 0);
             }
 
-            // 2. Determine Staff
+            const totalDuration = service.duration + durationBonus;
+
+            const apptStart = currentStartTime;
+            const apptEnd = new Date(apptStart.getTime() + totalDuration * 60000);
+
+            const bufferBefore = service.bufferBefore || 0;
+            const bufferAfter = service.bufferAfter || 0;
+
+            // Effective Resource Usage Time (Blocked Time)
+            const resourceStart = new Date(apptStart.getTime() - bufferBefore * 60000);
+            const resourceEnd = new Date(apptEnd.getTime() + bufferAfter * 60000);
+
+            // 2. Determine and Validate Staff
+            // Check for conflicts in the resource usage window
+            const conflicts = await prisma.appointment.findMany({
+                where: {
+                    locationId: service.locationId,
+                    startTime: { lt: resourceEnd, gte: new Date(resourceStart.getTime() - 24 * 60 * 60 * 1000) },
+                    status: { not: 'CANCELLED' }
+                },
+                include: { service: true }
+            });
+
+            // Filter overlapping appointments considering THEIR buffers too
+            const busyStaffIds = new Set(conflicts.filter(a => {
+                const aBufferBefore = a.service.bufferBefore || 0;
+                const aBufferAfter = a.service.bufferAfter || 0;
+
+                const aStart = new Date(a.startTime);
+                const aEnd = new Date(aStart.getTime() + a.duration * 60000);
+
+                const aResourceStart = new Date(aStart.getTime() - aBufferBefore * 60000);
+                const aResourceEnd = new Date(aEnd.getTime() + aBufferAfter * 60000);
+
+                // Check Overlap with MY resource usage
+                return resourceStart < aResourceEnd && aResourceStart < resourceEnd;
+            }).map(a => a.staffId));
+
             let staffId = data.staffId;
-            if (!staffId) {
-                const location = await prisma.location.findUnique({
-                    where: { id: service.locationId },
-                    include: { business: true }
+            if (staffId) {
+                if (busyStaffIds.has(staffId)) {
+                    return { error: `Selected staff is not available at this time` };
+                }
+            } else {
+                // Find available staff
+                const availableStaff = await prisma.user.findFirst({
+                    where: {
+                        locationId: service.locationId,
+                        id: { notIn: Array.from(busyStaffIds) },
+                        role: { in: ['STAFF', 'OWNER'] },
+                        isActive: true
+                    }
                 });
-                if (!location) return { error: 'Location not found' };
 
-                const business = await prisma.business.findUnique({
-                    where: { id: location.businessId },
-                    include: { owner: true }
-                });
-
-                if (!business || !business.owner) return { error: 'Business Owner not found' };
-                staffId = business.owner.id;
+                if (!availableStaff) return { error: 'No staff available at this time' };
+                staffId = availableStaff.id;
             }
 
-            // 3. Create Appointment
+            // 3. Room Logic
+            let roomBookingData = undefined;
+            if (service.requiresRoom) {
+                const availableRoom = await prisma.room.findFirst({
+                    where: {
+                        locationId: service.locationId,
+                        type: { in: service.roomTypes },
+                        isActive: true,
+                        bookings: {
+                            none: {
+                                AND: [
+                                    { startTime: { lt: resourceEnd } },
+                                    { endTime: { gt: resourceStart } }
+                                ]
+                            }
+                        }
+                    }
+                });
+
+                if (!availableRoom) return { error: `No ${service.roomTypes.join('/') || 'suitable'} room available` };
+
+                roomBookingData = {
+                    create: {
+                        roomId: availableRoom.id,
+                        startTime: resourceStart,
+                        endTime: resourceEnd
+                    }
+                };
+            }
+
+            // 4. Create Appointment
             const appointment = await prisma.appointment.create({
                 data: {
-                    startTime: currentStartTime,
-                    duration: service.duration,
+                    startTime: apptStart,
+                    duration: totalDuration,
                     status: 'SCHEDULED',
                     service: { connect: { id: service.id } },
                     staff: { connect: { id: staffId } },
                     client: { connect: { id: client.id } },
-                    location: { connect: { id: service.locationId } }
+                    location: { connect: { id: service.locationId } },
+                    roomBookings: roomBookingData,
+                    appointmentAddOns: serviceAddOnIds.length > 0 ? {
+                        create: serviceAddOnIds.map(id => ({ addOnId: id, quantity: 1 }))
+                    } : undefined
                 }
             });
 
             createdAppointments.push(appointment);
 
-            // Update start time for next service
-            currentStartTime = new Date(currentStartTime.getTime() + service.duration * 60000);
+            currentStartTime = apptEnd;
         }
 
         if (data.paymentIntentId && createdAppointments.length > 0) {
             // Calculate total amount
             let totalAmount = 0;
-            for (const apt of createdAppointments) {
-                // Fetch price again effectively or assume passed? We fetched service in loop.
-                // We need to re-fetch or optimistically trust?
-                // The loop fetched 'service'. We didn't save it to array.
-                // Let's do a quick query or sum it up inside the loop?
-                // Simpler: Just Fetch the created appointments with include service
-            }
-
-            // To avoid complexity, let's sum it inside the loop or just fetch quickly now.
+            // Fetch price from created appointments to be safe
             const createdIds = createdAppointments.map(a => a.id);
             const savedApts = await prisma.appointment.findMany({
                 where: { id: { in: createdIds } },
@@ -161,16 +234,11 @@ export async function getAppointments() {
             });
             return { appointments };
         } else if (role === 'CLIENT') {
-            // Check if there is a 'Client' record for this user email
-            // The old logic looked up "Client" table by email
             const clients = await prisma.client.findMany({
                 where: { email: email },
                 select: { id: true }
             });
             const clientIds = clients.map(c => c.id);
-
-            // Also include appointments where clientId matches user ID directly (if using unified table)
-            // But schema likely separates User vs Client.
 
             const appointments = await prisma.appointment.findMany({
                 where: {
@@ -193,9 +261,6 @@ export async function getAppointmentDetails(appointmentId: number) {
     try {
         const session = await getSession();
         if (!session) return { error: 'Unauthorized' };
-
-        // Ensure user has access (Owner of location or Client owner)
-        // For simplicity, strict checks can be added here similar to getAppointments
 
         const appointment = await prisma.appointment.findUnique({
             where: { id: appointmentId },
@@ -221,8 +286,6 @@ export async function updateAppointmentStatus(appointmentId: number, status: str
         const session = await getSession();
         if (!session) return { error: 'Unauthorized' };
 
-        // Verify ownership/role here ideally
-
         const appointment = await prisma.appointment.update({
             where: { id: appointmentId },
             data: { status }
@@ -244,9 +307,7 @@ export async function rescheduleAppointment(appointmentId: number, newStartTime:
             where: { id: appointmentId },
             data: {
                 startTime: new Date(newStartTime),
-                status: 'SCHEDULED' // Reset status to scheduled if it was something else? Or keep confirmed?
-                // Usually reschedule implies re-confirmation might be needed, or it stays confirmed.
-                // Let's set to SCHEDULED as safer default for re-approval.
+                status: 'SCHEDULED'
             }
         });
 

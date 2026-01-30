@@ -15,7 +15,7 @@ export function SiteHeader() {
                 <nav className="flex items-center gap-6">
                     <div className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground">
                         <Link href="/" className="hover:text-primary transition-colors">Home</Link>
-                        <Link href="/book" className="hover:text-primary transition-colors">Book</Link>
+                        <Link href="/salons" className="hover:text-primary transition-colors">Salons</Link>
                     </div>
                     <div className="flex items-center gap-4">
                         <UserNav />

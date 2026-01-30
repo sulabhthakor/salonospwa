@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from './auth';
 import { getMyBusiness } from './business';
 
-export async function createService(data: { name: string; category?: string; duration: number; price: number }) {
+export async function createService(data: { name: string; category?: string; duration: number; price: number; skillIds?: number[] }) {
     try {
         const session = await getSession();
         if (!session) return { error: 'Unauthorized' };
@@ -23,15 +23,21 @@ export async function createService(data: { name: string; category?: string; dur
         // 2. Use the first location
         const locationId = business.locations[0].id;
 
-        // 3. Create Service
+        // 3. Create Service with Skill Requirements
         const service = await prisma.service.create({
             data: {
                 name: data.name,
                 category: data.category || "General",
                 duration: data.duration,
                 price: data.price,
-                locationId: locationId
+                locationId: locationId,
+                skillRequirements: {
+                    create: data.skillIds?.map(skillId => ({
+                        skillId: skillId
+                    })) || []
+                }
             },
+            include: { skillRequirements: true }
         });
 
         return { success: true, service };
@@ -41,7 +47,7 @@ export async function createService(data: { name: string; category?: string; dur
     }
 }
 
-export async function updateService(id: number, data: { name?: string; category?: string; duration?: number; price?: number }) {
+export async function updateService(id: number, data: { name?: string; category?: string; duration?: number; price?: number; skillIds?: number[] }) {
     try {
         const session = await getSession();
         if (!session) return { error: 'Unauthorized' };
@@ -62,9 +68,36 @@ export async function updateService(id: number, data: { name?: string; category?
             return { error: 'Service not found or access denied' };
         }
 
-        const updatedService = await prisma.service.update({
-            where: { id },
-            data
+        // Prepare update data
+        const { skillIds, ...updateData } = data;
+
+        // Transaction for update
+        const updatedService = await prisma.$transaction(async (tx) => {
+            // Update basic fields
+            const svc = await tx.service.update({
+                where: { id },
+                data: updateData
+            });
+
+            // If skillIds provided, update relations
+            if (skillIds) {
+                // Delete existing
+                await tx.serviceSkillRequirement.deleteMany({
+                    where: { serviceId: id }
+                });
+
+                // Create new
+                if (skillIds.length > 0) {
+                    await tx.serviceSkillRequirement.createMany({
+                        data: skillIds.map(sid => ({
+                            serviceId: id,
+                            skillId: sid
+                        }))
+                    });
+                }
+            }
+
+            return svc;
         });
 
         return { success: true, service: updatedService };
@@ -146,5 +179,31 @@ export async function getPublicServices() {
     } catch (error) {
         console.error('Get Public Services Error:', error);
         return { services: [] };
+    }
+}
+export async function getSkills() {
+    try {
+        const session = await getSession();
+        if (!session) return { error: 'Unauthorized' };
+
+        // Get user's business location
+        const user = await prisma.user.findUnique({
+            where: { id: session.sub },
+            include: { business: { include: { locations: true } } }
+        });
+
+        const business = user?.business;
+        if (!business || business.locations.length === 0) return { skills: [] };
+
+        const locationId = business.locations[0].id;
+
+        const skills = await prisma.skill.findMany({
+            where: { locationId }
+        });
+
+        return { skills };
+    } catch (error) {
+        console.error('Get Skills Error:', error);
+        return { error: 'Failed to fetch skills' };
     }
 }

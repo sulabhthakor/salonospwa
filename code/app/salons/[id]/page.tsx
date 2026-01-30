@@ -84,7 +84,7 @@ export default async function SalonDetailsPage({
                                             <div className="text-right">
                                                 <div className="font-bold text-lg">${service.price}</div>
                                                 <Button size="sm" variant="outline" className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
-                                                    <Link href={`/book/${salon.id}/service/${service.id}`}>Book</Link>
+                                                    <Link href={`/book/${salon.id}?serviceId=${service.id}`}>Book</Link>
                                                 </Button>
                                             </div>
                                         </div>

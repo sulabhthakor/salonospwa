@@ -28,8 +28,11 @@ import * as z from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { createStaffMember, getStaffMembers, deleteStaffMember } from "@/actions/staff"
+import { createStaffMember, getStaffMembers, deleteStaffMember, updateStaffMember, resetStaffPassword } from "@/actions/staff"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Pencil, KeyRound, Clock } from "lucide-react"
+import { AvailabilityScheduler } from "@/components/dashboard/availability-scheduler"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 const staffSchema = z.object({
     name: z.string().min(2, "Name is required"),
@@ -43,6 +46,16 @@ export default function StaffPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
 
+    const [editingStaff, setEditingStaff] = useState<any>(null)
+    const [isEditOpen, setIsEditOpen] = useState(false)
+    const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false)
+    const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false)
+    const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
+    const [newPassword, setNewPassword] = useState("")
+
+    const [skills, setSkills] = useState<{ label: string, value: string }[]>([])
+    const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+
     const form = useForm({
         resolver: zodResolver(staffSchema),
         defaultValues: {
@@ -51,6 +64,37 @@ export default function StaffPage() {
             password: "",
         },
     })
+
+    const editForm = useForm({
+        defaultValues: {
+            name: "",
+            email: "",
+            skillIds: [] as number[]
+        }
+    })
+
+    useEffect(() => {
+        const loadSkills = async () => {
+            const { getSkills } = await import("@/actions/services")
+            const res = await getSkills()
+            if (res.skills) {
+                setSkills(res.skills.map((s: any) => ({ label: s.name, value: s.id.toString() })))
+            }
+        }
+        loadSkills()
+    }, [])
+
+    useEffect(() => {
+        if (editingStaff) {
+            editForm.reset({
+                name: editingStaff.name,
+                email: editingStaff.email,
+                skillIds: editingStaff.staffSkills?.map((ss: any) => ss.skillId) || []
+            })
+            // Set initial selected skills for UI
+            setSelectedSkills(editingStaff.staffSkills?.map((ss: any) => ss.skillId.toString()) || [])
+        }
+    }, [editingStaff, editForm])
 
     const fetchStaff = async () => {
         try {
@@ -105,6 +149,44 @@ export default function StaffPage() {
             toast.error("Failed to remove staff")
         }
     }
+
+    const handleEditSubmit = async (values: any) => {
+        if (!editingStaff) return;
+        try {
+            const res = await updateStaffMember(editingStaff.id, values);
+            if (res.error) {
+                toast.error(res.error);
+            } else {
+                toast.success("Staff member updated");
+                setIsEditOpen(false);
+                setEditingStaff(null);
+                fetchStaff();
+            }
+        } catch (error) {
+            toast.error("Failed to update staff");
+        }
+    };
+
+    const handleResetPassword = async () => {
+        if (!selectedStaffId || !newPassword || newPassword.length < 6) {
+            toast.error("Password must be at least 6 characters");
+            return;
+        }
+
+        try {
+            const res = await resetStaffPassword(selectedStaffId, newPassword);
+            if (res.error) {
+                toast.error(res.error);
+            } else {
+                toast.success("Password reset successfully");
+                setIsResetPasswordOpen(false);
+                setSelectedStaffId(null);
+                setNewPassword("");
+            }
+        } catch (error) {
+            toast.error("Failed to reset password");
+        }
+    };
 
     const filteredStaff = staff.filter(s =>
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -210,6 +292,40 @@ export default function StaffPage() {
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-blue-600 hover:bg-blue-50 ml-1"
+                                                onClick={() => {
+                                                    setEditingStaff(member);
+                                                    setIsEditOpen(true);
+                                                }}
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-green-600 hover:bg-green-50 ml-1"
+                                                onClick={() => {
+                                                    setSelectedStaffId(member.id);
+                                                    setIsAvailabilityOpen(true);
+                                                }}
+                                                title="Manage Availability"
+                                            >
+                                                <Clock className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50 ml-1"
+                                                onClick={() => {
+                                                    setSelectedStaffId(member.id);
+                                                    setIsResetPasswordOpen(true);
+                                                }}
+                                            >
+                                                <KeyRound className="h-4 w-4" />
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -280,6 +396,89 @@ export default function StaffPage() {
                             </DialogFooter>
                         </form>
                     </Form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Staff Member</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Full Name</label>
+                            <Input
+                                value={editForm.watch("name")}
+                                onChange={(e) => editForm.setValue("name", e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Email Address</label>
+                            <Input
+                                value={editForm.watch("email")}
+                                onChange={(e) => editForm.setValue("email", e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Assigned Skills</label>
+                            <MultiSelect
+                                options={skills}
+                                selected={selectedSkills}
+                                onChange={(val) => {
+                                    setSelectedSkills(val)
+                                    editForm.setValue("skillIds", val.map(v => Number(v)))
+                                }}
+                                placeholder="Select skills..."
+                            />
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                            <Button onClick={() => handleEditSubmit(editForm.getValues())}>Save Changes</Button>
+                        </DialogFooter>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isResetPasswordOpen} onOpenChange={setIsResetPasswordOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Reset Password</DialogTitle>
+                        <DialogDescription>
+                            Enter a new password for this staff member.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">New Password</label>
+                            <Input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="******"
+                            />
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button type="button" variant="outline" onClick={() => setIsResetPasswordOpen(false)}>Cancel</Button>
+                            <Button onClick={handleResetPassword}>Reset Password</Button>
+                        </DialogFooter>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAvailabilityOpen} onOpenChange={setIsAvailabilityOpen}>
+                <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Manage Availability</DialogTitle>
+                        <DialogDescription>
+                            Set working hours for this staff member.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedStaffId && (
+                        <AvailabilityScheduler
+                            staffId={selectedStaffId}
+                            onClose={() => setIsAvailabilityOpen(false)}
+                        />
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

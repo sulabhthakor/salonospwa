@@ -35,16 +35,19 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { createService, updateService, deleteService, getServices } from "@/actions/services"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 const serviceSchema = z.object({
     name: z.string().min(1, "Name is required"),
     category: z.string().optional(),
     duration: z.coerce.number().min(1, "Duration must be at least 1 min"),
     price: z.coerce.number().min(0, "Price cannot be negative"),
+    skillIds: z.array(z.string().or(z.number())).optional()
 })
 
 export default function ServicesPage() {
     const [services, setServices] = useState<any[]>([])
+    const [skills, setSkills] = useState<{ label: string, value: string }[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingService, setEditingService] = useState<any>(null)
@@ -57,6 +60,7 @@ export default function ServicesPage() {
             category: "",
             duration: 30,
             price: 0,
+            skillIds: [] as number[]
         },
     })
 
@@ -74,17 +78,37 @@ export default function ServicesPage() {
         }
     }
 
+    const fetchSkills = async () => {
+        try {
+            const { getSkills } = await import("@/actions/services")
+            const res = await getSkills()
+            if (res.skills) {
+                setSkills(res.skills.map((s: any) => ({ label: s.name, value: s.id.toString() })))
+            }
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
     useEffect(() => {
         fetchServices()
+        fetchSkills()
     }, [])
 
     const onSubmit = async (values: any) => {
         try {
+            // Convert skillIds back to numbers if needed, though they stored as array in form
+            // MultiSelect usually deals with strings, so ensure conversion
+            const payload = {
+                ...values,
+                skillIds: values.skillIds.map((id: string | number) => Number(id))
+            }
+
             let res
             if (editingService) {
-                res = await updateService(editingService.id, values)
+                res = await updateService(editingService.id, payload)
             } else {
-                res = await createService(values)
+                res = await createService(payload)
             }
 
             if (res?.error) {
@@ -96,7 +120,7 @@ export default function ServicesPage() {
                 toast.success(editingService ? "Service updated" : "Service added successfully")
                 setIsDialogOpen(false)
                 setEditingService(null)
-                form.reset({ name: "", duration: 30, price: 0 })
+                form.reset({ name: "", duration: 30, price: 0, skillIds: [] })
                 fetchServices()
             }
         } catch (error) {
@@ -111,14 +135,15 @@ export default function ServicesPage() {
             name: service.name,
             category: service.category || "",
             duration: service.duration,
-            price: service.price
+            price: service.price,
+            skillIds: service.skillRequirements?.map((sr: any) => sr.skillId.toString()) || []
         })
         setIsDialogOpen(true)
     }
 
     const startCreate = () => {
         setEditingService(null)
-        form.reset({ name: "", category: "", duration: 30, price: 0 })
+        form.reset({ name: "", category: "", duration: 30, price: 0, skillIds: [] })
         setIsDialogOpen(true)
     }
 
@@ -290,6 +315,25 @@ export default function ServicesPage() {
                                         <FormLabel>Category</FormLabel>
                                         <FormControl>
                                             <Input placeholder="e.g. Hair, Spa, Nail" className="h-10" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="skillIds"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Required Skills</FormLabel>
+                                        <FormControl>
+                                            <MultiSelect
+                                                options={skills}
+                                                selected={field.value?.map((v: any) => v.toString()) || []}
+                                                onChange={(val) => field.onChange(val)}
+                                                placeholder="Select skills required..."
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

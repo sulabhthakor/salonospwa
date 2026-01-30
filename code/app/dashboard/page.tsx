@@ -19,6 +19,9 @@ export default function DashboardPage() {
         totalClients: 0,
         activeServices: 0,
         totalRevenue: 0,
+        totalRevenue: 0,
+        businessId: null as number | null,
+        locationId: null as number | null,
         chartData: [] as { name: string; total: number }[]
     })
     const [recentAppointments, setRecentAppointments] = useState<any[]>([])
@@ -58,6 +61,9 @@ export default function DashboardPage() {
                             totalClients: res.stats.totalClients,
                             activeServices: res.stats.activeServices,
                             totalRevenue: res.stats.totalRevenue,
+                            totalRevenue: res.stats.totalRevenue,
+                            businessId: res.stats.businessId,
+                            locationId: res.stats.locationId,
                             chartData: res.stats.chartData
                         });
                         setRecentAppointments(res.stats.recentAppointments);
@@ -110,7 +116,14 @@ export default function DashboardPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button onClick={() => router.push("/book")} className="bg-primary shadow-sm hover:shadow-md transition-all">
+                    <Button
+                        onClick={() => {
+                            if (stats.locationId) router.push(`/book/${stats.locationId}`)
+                            else if (stats.businessId) toast.error("No location found for this business")
+                            else toast.error("Business info not found")
+                        }}
+                        className="bg-primary shadow-sm hover:shadow-md transition-all"
+                    >
                         <Plus className="w-4 h-4 mr-2" /> New Booking
                     </Button>
                 </div>
@@ -196,26 +209,80 @@ export default function DashboardPage() {
                 </Card>
             </div>
 
-            {/* Quick Actions (Moved below charts) */}
+            {/* Main Navigation Grid */}
             <div>
-                <h2 className="text-lg font-bold tracking-tight mb-4">Quick Management</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <h2 className="text-lg font-bold tracking-tight mb-4">Management</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <QuickAction
+                        icon={Calendar}
+                        title="Appointments"
+                        desc="View bookings"
+                        onClick={() => router.push("/dashboard/appointments")}
+                    />
                     <QuickAction
                         icon={Users}
-                        title="Manage Clients"
-                        desc="View and add customers"
+                        title="Clients"
+                        desc="Customer database"
                         onClick={() => router.push("/dashboard/clients")}
                     />
                     <QuickAction
+                        icon={Users}
+                        title="Staff"
+                        desc="Manage team"
+                        onClick={() => router.push("/dashboard/staff")}
+                    />
+                    <QuickAction
                         icon={Scissors}
-                        title="Service Menu"
-                        desc="Update prices & items"
+                        title="Services"
+                        desc="Menu & Pricing"
                         onClick={() => router.push("/dashboard/services")}
                     />
                     <QuickAction
+                        icon={Clock} // Using Clock as placeholder for Addons/Time
+                        title="Add-ons"
+                        desc="Extra services"
+                        onClick={() => router.push("/dashboard/addons")}
+                    />
+                    <QuickAction
+                        icon={TrendingUp} // Validation needed on icon, using TrendingUp for simple update
+                        title="Finances"
+                        desc="Revenue reports"
+                        onClick={() => router.push("/dashboard/finances")}
+                    />
+                    <QuickAction
                         icon={Settings}
-                        title="Business Setup"
-                        desc="Manage profile details"
+                        title="Rooms" // Assuming Rooms/Resources
+                        desc="Manage spaces"
+                        onClick={() => router.push("/dashboard/rooms")}
+                    />
+                    <QuickAction
+                        icon={Settings}
+                        title="Packages"
+                        desc="Bundles & Deals"
+                        onClick={() => router.push("/dashboard/packages")}
+                    />
+                    <QuickAction
+                        icon={Users}
+                        title="Memberships"
+                        desc="Subscriptions"
+                        onClick={() => router.push("/dashboard/memberships")}
+                    />
+                    <QuickAction
+                        icon={Settings}
+                        title="Skills"
+                        desc="Staff qualifications"
+                        onClick={() => router.push("/dashboard/skills")}
+                    />
+                    <QuickAction
+                        icon={Settings}
+                        title="Forms"
+                        desc="Intake forms"
+                        onClick={() => router.push("/dashboard/forms")}
+                    />
+                    <QuickAction
+                        icon={Settings}
+                        title="Settings"
+                        desc="Business Profile"
                         onClick={() => router.push("/dashboard/onboarding")}
                     />
                 </div>

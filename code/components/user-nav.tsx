@@ -86,15 +86,16 @@ export function UserNav() {
                         <DropdownMenuItem onClick={() => {
                             if (user.role === 'CLIENT') router.push("/client/dashboard");
                             else if (user.role === 'STAFF') router.push("/staff/dashboard");
+                            else if (user.role === 'OWNER') router.push("/dashboard");
                             else router.push("/admin/dashboard");
                         }}>
                             Dashboard
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(user.role === 'CLIENT' ? "/client/settings" : "/dashboard/profile")}>
+                        <DropdownMenuItem onClick={() => router.push(user.role === 'CLIENT' ? "/client/settings" : "/dashboard/onboarding")}>
                             My Profile
                         </DropdownMenuItem>
-                        {user.role?.includes('OWNER') && (
-                            <DropdownMenuItem onClick={() => router.push("/admin/staff")}>
+                        {user.role === 'OWNER' && (
+                            <DropdownMenuItem onClick={() => router.push("/dashboard/staff")}>
                                 Manage Staff
                             </DropdownMenuItem>
                         )}

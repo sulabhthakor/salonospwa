@@ -7,6 +7,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ===== ENUMS =====
+
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -21,29 +23,60 @@ enum BusinessStatus {
   REJECTED
 }
 
+enum BusinessType {
+  SALON
+  SPA
+  WELLNESS
+}
+
+enum RoomType {
+  MASSAGE
+  FACIAL
+  COUPLE
+  STEAM
+  THERAPY
+  GENERAL
+}
+
+enum PackageType {
+  SESSION_BASED
+  VALUE_BASED
+}
+
+// ===== CORE MODELS =====
+
 model Business {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   description String?
+  type        BusinessType   @default(SALON)
   status      BusinessStatus @default(PENDING)
-  owner       User     @relation("BusinessOwner", fields: [ownerId], references: [id])
+  owner       User           @relation("BusinessOwner", fields: [ownerId], references: [id])
   ownerId     String
   locations   Location[]
-  staff       User[]   @relation("BusinessStaff")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  staff       User[]         @relation("BusinessStaff")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 
 model Location {
-  id          Int     @id @default(autoincrement())
-  business    Business @relation(fields: [businessId], references: [id])
-  businessId  String
-  name        String
-  tenantUsers User[]   // Staff working at this location
-  clients     Client[]
+  id           Int      @id @default(autoincrement())
+  business     Business @relation(fields: [businessId], references: [id])
+  businessId   String
+  name         String
+  tenantUsers  User[]   // Staff working at this location
+  clients      Client[]
   appointments Appointment[]
-  inventory   Product[]
-  services    Service[]
+  inventory    Product[]
+  services     Service[]
+  
+  // Spa/Wellness additions
+  rooms               Room[]
+  skills              Skill[]
+  intakeFormTemplates IntakeFormTemplate[]
+  packages            Package[]
+  memberships         Membership[]
+  addOns              AddOn[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -66,6 +99,10 @@ model User {
   locationId  Int?
   
   staffAppointments Appointment[] @relation("StaffAppointments")
+  
+  // Spa/Wellness additions
+  staffSkills StaffSkill[]
+  availability StaffAvailability[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -82,6 +119,11 @@ model Client {
   appointments Appointment[]
   
   notes       String?
+  
+  // Spa/Wellness additions
+  intakeResponses   IntakeResponse[]
+  clientPackages    ClientPackage[]
+  clientMemberships ClientMembership[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -107,6 +149,14 @@ model Appointment {
   
   payment     Payment?
   
+  // Spa/Wellness additions
+  roomBookings      RoomBooking[]
+  intakeResponses   IntakeResponse[]
+  packageUsages     PackageUsage[]
+  appointmentAddOns AppointmentAddOn[]
+  bookingGroup      BookingGroup? @relation(fields: [bookingGroupId], references: [id])
+  bookingGroupId    Int?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -126,23 +176,326 @@ model Payment {
 }
 
 model Service {
-  id        Int      @id @default(autoincrement())
-  location  Location @relation(fields: [locationId], references: [id])
+  id         Int      @id @default(autoincrement())
+  location   Location @relation(fields: [locationId], references: [id])
   locationId Int
-  name      String
-  category  String   @default("General")
-  duration  Int
-  price     Float
+  name       String
+  category   String   @default("General")
+  duration   Int
+  price      Float
   
-  appointments Appointment[]
+  // Buffer time (spa feature)
+  bufferBefore Int @default(0) // Minutes before service
+  bufferAfter  Int @default(0) // Minutes after service
+  
+  // Room requirements (spa feature)
+  requiresRoom Boolean    @default(false)
+  roomTypes    RoomType[] // Allowed room types for this service
+  
+  appointments         Appointment[]
+  skillRequirements    ServiceSkillRequirement[]
+  packageServices      PackageService[]
+  serviceAddOns        ServiceAddOn[]
+  inventoryUsage       ServiceInventoryUsage[]
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  location  Location @relation(fields: [locationId], references: [id])
+  id         Int      @id @default(autoincrement())
+  location   Location @relation(fields: [locationId], references: [id])
   locationId Int
-  name      String
-  sku       String?
-  price     Float
-  stock     Int      @default(0)
+  name       String
+  sku        String?
+  price      Float
+  stock      Int      @default(0)
+  
+  // Low stock threshold for alerts
+  lowStockThreshold Int @default(10)
+  
+  // Spa/Wellness additions
+  addOns              AddOn[]
+  inventoryUsage      ServiceInventoryUsage[]
 }
+
+// ===== ROOM MANAGEMENT (Spa Feature) =====
+
+model Room {
+  id          Int       @id @default(autoincrement())
+  name        String
+  type        RoomType  @default(GENERAL)
+  capacity    Int       @default(1)
+  description String?
+  isActive    Boolean   @default(true)
+  
+  location   Location  @relation(fields: [locationId], references: [id])
+  locationId Int
+  
+  bookings   RoomBooking[]
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model RoomBooking {
+  id            Int         @id @default(autoincrement())
+  room          Room        @relation(fields: [roomId], references: [id])
+  roomId        Int
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId Int
+  
+  startTime     DateTime
+  endTime       DateTime
+  
+  @@unique([roomId, appointmentId])
+  @@index([roomId, startTime, endTime])
+}
+
+// ===== SKILLS & CERTIFICATIONS (Spa Feature) =====
+
+model Skill {
+  id          Int       @id @default(autoincrement())
+  name        String    // "Deep Tissue", "Aromatherapy", "Ayurveda"
+  category    String?   // "Massage", "Facial", "Therapy"
+  description String?
+  
+  location    Location  @relation(fields: [locationId], references: [id])
+  locationId  Int
+  
+  staffSkills         StaffSkill[]
+  serviceRequirements ServiceSkillRequirement[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model StaffSkill {
+  id               Int       @id @default(autoincrement())
+  staff            User      @relation(fields: [staffId], references: [id])
+  staffId          String
+  skill            Skill     @relation(fields: [skillId], references: [id])
+  skillId          Int
+  
+  certificationUrl String?   // URL to uploaded certificate
+  issuedAt         DateTime?
+  expiresAt        DateTime?
+  
+  createdAt        DateTime  @default(now())
+  
+  @@unique([staffId, skillId])
+}
+
+model StaffAvailability {
+  id        Int      @id @default(autoincrement())
+  dayOfWeek Int      // 0=Sunday, 1=Monday, ...
+  startTime String   // "09:00"
+  endTime   String   // "17:00"
+  isWorking Boolean  @default(true)
+  
+  staff     User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staffId   String
+
+  @@unique([staffId, dayOfWeek])
+}
+
+model ServiceSkillRequirement {
+  id        Int     @id @default(autoincrement())
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId Int
+  skill     Skill   @relation(fields: [skillId], references: [id])
+  skillId   Int
+  
+  @@unique([serviceId, skillId])
+}
+
+// ===== INTAKE FORMS (Spa Feature) =====
+
+model IntakeFormTemplate {
+  id         Int       @id @default(autoincrement())
+  name       String
+  fields     Json      // Array of field definitions
+  isActive   Boolean   @default(true)
+  
+  location   Location  @relation(fields: [locationId], references: [id])
+  locationId Int
+  
+  responses  IntakeResponse[]
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model IntakeResponse {
+  id            Int                @id @default(autoincrement())
+  template      IntakeFormTemplate @relation(fields: [templateId], references: [id])
+  templateId    Int
+  
+  client        Client             @relation(fields: [clientId], references: [id])
+  clientId      Int
+  
+  appointment   Appointment?       @relation(fields: [appointmentId], references: [id])
+  appointmentId Int?
+  
+  responses     Json               // Key-value pairs of field responses
+  submittedAt   DateTime           @default(now())
+}
+
+// ===== PACKAGES (Spa Feature) =====
+
+model Package {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  type        PackageType
+  totalValue  Float       // Sessions count or currency amount
+  price       Float
+  expiryDays  Int?        // Days from purchase until expiry
+  isActive    Boolean     @default(true)
+  
+  location    Location    @relation(fields: [locationId], references: [id])
+  locationId  Int
+  
+  services    PackageService[]
+  purchases   ClientPackage[]
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model PackageService {
+  id        Int     @id @default(autoincrement())
+  package   Package @relation(fields: [packageId], references: [id])
+  packageId Int
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId Int
+  
+  @@unique([packageId, serviceId])
+}
+
+model ClientPackage {
+  id             Int       @id @default(autoincrement())
+  client         Client    @relation(fields: [clientId], references: [id])
+  clientId       Int
+  package        Package   @relation(fields: [packageId], references: [id])
+  packageId      Int
+  
+  remainingValue Float
+  purchasedAt    DateTime  @default(now())
+  expiresAt      DateTime?
+  
+  usages         PackageUsage[]
+}
+
+model PackageUsage {
+  id              Int           @id @default(autoincrement())
+  clientPackage   ClientPackage @relation(fields: [clientPackageId], references: [id])
+  clientPackageId Int
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id])
+  appointmentId   Int
+  valueUsed       Float
+  usedAt          DateTime      @default(now())
+}
+
+// ===== MEMBERSHIPS (Spa Feature) =====
+
+model Membership {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  description        String?
+  monthlyCredits     Float
+  discountPercent    Float     @default(0)
+  price              Float
+  stripePriceId      String?   // Stripe recurring price ID
+  isActive           Boolean   @default(true)
+  
+  location           Location  @relation(fields: [locationId], references: [id])
+  locationId         Int
+  
+  subscribers        ClientMembership[]
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model ClientMembership {
+  id                   Int        @id @default(autoincrement())
+  client               Client     @relation(fields: [clientId], references: [id])
+  clientId             Int
+  membership           Membership @relation(fields: [membershipId], references: [id])
+  membershipId         Int
+  
+  stripeSubscriptionId String?
+  currentCredits       Float
+  renewsAt             DateTime
+  status               String     // 'ACTIVE', 'CANCELLED', 'PAUSED'
+  
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+}
+
+// ===== ADD-ONS (Spa Feature) =====
+
+model AddOn {
+  id             Int       @id @default(autoincrement())
+  name           String    // "Hot Stones", "Extra 15min", "Premium Oils"
+  description    String?
+  price          Float
+  durationChange Int       @default(0) // Minutes to add to service
+  
+  location       Location  @relation(fields: [locationId], references: [id])
+  locationId     Int
+  
+  // Optional inventory link for stock deduction
+  product        Product?  @relation(fields: [productId], references: [id])
+  productId      Int?
+  productQty     Float?    // Quantity to deduct per use
+  
+  applicableServices ServiceAddOn[]
+  bookings           AppointmentAddOn[]
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model ServiceAddOn {
+  id        Int     @id @default(autoincrement())
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId Int
+  addOn     AddOn   @relation(fields: [addOnId], references: [id])
+  addOnId   Int
+  
+  @@unique([serviceId, addOnId])
+}
+
+model AppointmentAddOn {
+  id            Int         @id @default(autoincrement())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId Int
+  addOn         AddOn       @relation(fields: [addOnId], references: [id])
+  addOnId       Int
+  quantity      Int         @default(1)
+  
+  @@unique([appointmentId, addOnId])
+}
+
+// ===== GROUP BOOKING (Spa Feature) =====
+
+model BookingGroup {
+  id           Int           @id @default(autoincrement())
+  name         String?       // e.g., "Couple Massage - Smith"
+  appointments Appointment[]
+  
+  createdAt    DateTime      @default(now())
+}
+
+// ===== INVENTORY CONSUMPTION (Spa Feature) =====
+
+model ServiceInventoryUsage {
+  id        Int     @id @default(autoincrement())
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+  quantity  Float   // e.g., 50 (ml of oil)
+  
+  @@unique([serviceId, productId])
+}
+

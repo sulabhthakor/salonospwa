@@ -20,7 +20,18 @@ export default function ClientLayout({
                         <Heart className="w-6 h-6" />
                         SalonOS <span className="text-xs font-normal bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full ml-1">Client</span>
                     </Link>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
+                        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+                            <Link href="/client/dashboard" className="text-muted-foreground hover:text-primary transition-colors">
+                                Dashboard
+                            </Link>
+                            <Link href="/book" className="text-muted-foreground hover:text-primary transition-colors">
+                                Book Now
+                            </Link>
+                            <Link href="/client/memberships" className="text-muted-foreground hover:text-primary transition-colors">
+                                Memberships
+                            </Link>
+                        </nav>
                         <UserNav />
                     </div>
                 </div>
