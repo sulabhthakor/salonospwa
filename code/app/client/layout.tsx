@@ -1,0 +1,44 @@
+"use client";
+
+import Link from "next/link";
+import { UserNav } from "@/components/user-nav";
+import { Heart } from "lucide-react";
+
+export default function ClientLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="min-h-screen bg-gray-50/50 dark:bg-black/90">
+            {/* Background Gradients */}
+            <div className="fixed inset-0 -z-10 h-full w-full bg-white dark:bg-black [background:radial-gradient(125%_125%_at_50%_10%,#fff_40%,#8b5cf6_100%)] dark:[background:radial-gradient(125%_125%_at_50%_10%,#000_40%,#8b5cf6_100%)] opacity-20"></div>
+
+            <header className="sticky top-0 z-50 w-full glass">
+                <div className="container flex h-16 items-center justify-between mx-auto px-4">
+                    <Link href="/client/dashboard" className="flex items-center gap-2 font-bold text-xl text-primary">
+                        <Heart className="w-6 h-6" />
+                        SalonOS <span className="text-xs font-normal bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full ml-1">Client</span>
+                    </Link>
+                    <div className="flex items-center gap-6">
+                        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+                            <Link href="/client/dashboard" className="text-muted-foreground hover:text-primary transition-colors">
+                                Dashboard
+                            </Link>
+                            <Link href="/book" className="text-muted-foreground hover:text-primary transition-colors">
+                                Book Now
+                            </Link>
+                            <Link href="/client/memberships" className="text-muted-foreground hover:text-primary transition-colors">
+                                Memberships
+                            </Link>
+                        </nav>
+                        <UserNav />
+                    </div>
+                </div>
+            </header>
+            <main className="container mx-auto py-6 px-4 animate-fade-in">
+                {children}
+            </main>
+        </div>
+    );
+}

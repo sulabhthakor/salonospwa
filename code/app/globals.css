@@ -150,19 +150,28 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 dark:bg-black/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
+    @apply bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-lg supports-[backdrop-filter]:bg-white/40 dark:supports-[backdrop-filter]:bg-zinc-950/40;
   }
   
   .glass-card {
-    @apply bg-white/50 dark:bg-black/50 backdrop-blur-lg border border-white/30 dark:border-white/10 shadow-md;
+    @apply bg-white/60 dark:bg-zinc-900/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-xl supports-[backdrop-filter]:bg-white/30 dark:supports-[backdrop-filter]:bg-zinc-900/30 transition-all duration-300;
   }
 
   .glass-hover {
-    @apply hover:bg-white/80 dark:hover:bg-black/80 transition-all duration-300;
+    @apply hover:bg-white/80 dark:hover:bg-zinc-800/80 transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl;
+  }
+
+  /* Premium Gradients */
+  .bg-gradient-brand {
+    @apply bg-linear-to-br from-primary via-cyan-400 to-blue-500 text-white;
+  }
+  
+  .bg-gradient-dark {
+    @apply bg-linear-to-br from-zinc-900 via-zinc-800 to-zinc-950;
   }
 
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-linear-to-r from-primary to-purple-600;
+    @apply bg-clip-text text-transparent bg-linear-to-r from-primary via-cyan-500 to-blue-600 dark:from-sky-300 dark:via-cyan-300 dark:to-blue-400 font-bold tracking-tight;
   }
 
   .animate-fade-in {

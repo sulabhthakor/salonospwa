@@ -28,12 +28,23 @@ export async function getAdminStats() {
         });
         const totalBookings = await prisma.appointment.count();
 
+        // Calculate total platform revenue from completed appointments
+        const completedAppointments = await prisma.appointment.findMany({
+            where: { status: 'COMPLETED' },
+            include: { service: { select: { price: true } } }
+        });
+        const totalRevenue = completedAppointments.reduce(
+            (sum, apt) => sum + (apt.service?.price || 0),
+            0
+        );
+
         return {
             stats: {
                 totalUsers,
                 totalSalons,
                 pendingSalons,
-                totalBookings
+                totalBookings,
+                totalRevenue
             }
         };
     } catch (error) {
@@ -100,7 +111,8 @@ export async function getAdminUsers() {
                 name: true,
                 role: true,
                 createdAt: true,
-                businessId: true
+                businessId: true,
+                isActive: true
             }
         });
 
@@ -108,5 +120,29 @@ export async function getAdminUsers() {
     } catch (error) {
         console.error('Get Admin Users Error:', error);
         return { error: 'Failed to fetch users' };
+    }
+}
+
+export async function toggleUserStatus(userId: string) {
+    try {
+        const auth = await checkAdmin();
+        if (auth.error) return auth;
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { isActive: true }
+        });
+
+        if (!user) return { error: 'User not found' };
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { isActive: !user.isActive }
+        });
+
+        return { success: true, isActive: updatedUser.isActive };
+    } catch (error) {
+        console.error('Toggle User Status Error:', error);
+        return { error: 'Failed to toggle user status' };
     }
 }

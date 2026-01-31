@@ -18,14 +18,6 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
 
 const formSchema = z.object({
     name: z.string().min(2, {
@@ -85,78 +77,66 @@ export default function RegisterPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background relative overflow-hidden">
-            {/* Background Blob */}
-            <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
-
-            <Card className="w-full max-w-md glass-card z-10 animate-fade-in border-none shadow-xl">
-                <CardHeader className="space-y-1 text-center">
-                    <Link href="/" className="text-2xl font-bold text-primary mb-2 inline-block">SalonOS</Link>
-                    <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-                    <CardDescription>
-                        Enter your details below to create your account
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Full Name</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="John Doe" {...field} className="bg-white/50 dark:bg-black/20" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="m@example.com" {...field} className="bg-white/50 dark:bg-black/20" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Password</FormLabel>
-                                        <FormControl>
-                                            <Input type="password" {...field} className="bg-white/50 dark:bg-black/20" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            {error && <div className="text-sm text-red-500 text-center">{error}</div>}
-                            <Button type="submit" className="w-full rounded-full shadow-md hover:shadow-lg transition-all" disabled={isLoading}>
-                                {isLoading ? "Creating account..." : "Create account"}
-                            </Button>
-                        </form>
-                    </Form>
-                </CardContent>
-                <CardFooter className="flex justify-center">
-                    <div className="text-sm text-muted-foreground">
-                        Already have an account?{" "}
-                        <Link href="/auth/login" className="text-primary font-medium hover:underline">
-                            Sign in
-                        </Link>
-                    </div>
-                </CardFooter>
-            </Card>
+        <div className="flex flex-col gap-6 animate-fade-in">
+            <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl font-bold">Create an account</h1>
+                <p className="text-balance text-muted-foreground text-sm">
+                    Enter your details below to create your account
+                </p>
+            </div>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="John Doe" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="m@example.com" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <FormControl>
+                                    <Input type="password" placeholder="******" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    {error && <div className="text-sm text-red-500 text-center">{error}</div>}
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? "Creating account..." : "Create account"}
+                    </Button>
+                </form>
+            </Form>
+            <div className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link href="/auth/login" className="text-primary font-medium hover:underline">
+                    Sign in
+                </Link>
+            </div>
         </div>
     )
 }

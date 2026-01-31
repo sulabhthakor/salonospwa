@@ -15,6 +15,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Notifications } from "@/components/notifications"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
@@ -45,7 +47,8 @@ export function UserNav() {
 
     if (!user) {
         return (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+                <ThemeToggle />
                 <Button variant="ghost" onClick={() => router.push("/auth/login")}>Sign In</Button>
                 <Button onClick={() => router.push("/auth/register")}>Get Started</Button>
             </div>
@@ -57,43 +60,58 @@ export function UserNav() {
     }
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                        <AvatarImage src="" alt={user.name} />
-                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                    </Avatar>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.name}</p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                            {user.email}
-                        </p>
-                    </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                    <DropdownMenuItem onClick={() => router.push(user.role?.includes('ADMIN') ? "/admin/dashboard" : "/dashboard")}>
-                        Dashboard
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
-                        My Profile
-                    </DropdownMenuItem>
-                    {!user.role?.includes('ADMIN') && (
-                        <DropdownMenuItem onClick={() => router.push("/dashboard/appointments")}>
-                            My Bookings
+        <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Notifications />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                        <Avatar className="h-8 w-8">
+                            <AvatarImage src="" alt={user.name} />
+                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                        </Avatar>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                            <p className="text-sm font-medium leading-none">{user.name}</p>
+                            <p className="text-xs leading-none text-muted-foreground">
+                                {user.email}
+                            </p>
+                        </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                        <DropdownMenuItem onClick={() => {
+                            if (user.role === 'CLIENT') router.push("/client/dashboard");
+                            else if (user.role === 'STAFF') router.push("/staff/dashboard");
+                            else if (user.role === 'OWNER') router.push("/dashboard");
+                            else router.push("/admin/dashboard");
+                        }}>
+                            Dashboard
                         </DropdownMenuItem>
-                    )}
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
-                    Log out
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+                        <DropdownMenuItem onClick={() => router.push(user.role === 'CLIENT' ? "/client/settings" : "/dashboard/onboarding")}>
+                            My Profile
+                        </DropdownMenuItem>
+                        {user.role === 'OWNER' && (
+                            <DropdownMenuItem onClick={() => router.push("/dashboard/staff")}>
+                                Manage Staff
+                            </DropdownMenuItem>
+                        )}
+                        {user.role === 'CLIENT' && (
+                            <DropdownMenuItem onClick={() => router.push("/client/dashboard")}>
+                                My Bookings
+                            </DropdownMenuItem>
+                        )}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
+                        Log out
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
     )
 }
+
