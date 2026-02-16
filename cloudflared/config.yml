@@ -1,0 +1,7 @@
+tunnel: 334e8995-44c8-497b-9cf4-f59c98b99c27
+credentials-file: /etc/cloudflared/334e8995-44c8-497b-9cf4-f59c98b99c27.json
+
+ingress:
+  - hostname: sb.snapdecode.in
+    service: http://nginx:80
+  - service: http_status:404

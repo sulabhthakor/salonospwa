@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # 🐘 PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: salon_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: salon_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - salon-network
+
+  # 🌐 Next.js Application
+  nextjs-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: salon_app
+    ports:
+      - "3003:3000"
+    restart: always
+    env_file:
+      - ./code/.env.docker
+    depends_on:
+      - postgres
+    networks:
+      - salon-network
+
+  # ☁️ Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: salon_cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    volumes:
+      - ./cloudflared:/etc/cloudflared
+    depends_on:
+      - nginx
+    networks:
+      - salon-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: salon_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8082:80"
+    restart: always
+    depends_on:
+      - nextjs-app
+    networks:
+      - salon-network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  salon-network:
+    driver: bridge
