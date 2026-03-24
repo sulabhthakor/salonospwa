@@ -3,6 +3,7 @@
 import { UserNav } from "@/components/user-nav";
 import Link from "next/link";
 import { Store } from "lucide-react";
+import { BottomNav } from "@/components/layout/bottom-nav";
 
 export default function DashboardLayout({
     children,
@@ -25,9 +26,10 @@ export default function DashboardLayout({
                     </div>
                 </div>
             </header>
-            <main className="container mx-auto py-6 animate-fade-in">
+            <main className="container mx-auto py-6 animate-fade-in pb-20 lg:pb-0">
                 {children}
             </main>
+            <BottomNav />
         </div>
     )
 }

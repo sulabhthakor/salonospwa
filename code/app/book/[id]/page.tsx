@@ -731,7 +731,7 @@ export default function BookingPage() {
                 </div>
 
                 {/* Mobile Bottom Bar */}
-                <div className="fixed bottom-0 left-0 w-full bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-gray-800 p-4 shadow-2xl lg:hidden z-50 flex items-center justify-between gap-4 safe-area-pb">
+                <div className="fixed bottom-0 left-0 w-full bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-gray-800 p-4 shadow-2xl lg:hidden z-40 flex items-center justify-between gap-4 pb-safe">
                     <div className="flex flex-col">
                         <span className="text-xs text-muted-foreground">{selectedServices.length} items • {totalDuration} mins</span>
                         <span className="text-xl font-bold text-primary">₹{totalPrice}</span>

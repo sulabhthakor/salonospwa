@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { Store } from "lucide-react"
 import { UserNav } from "@/components/user-nav"
+import { BottomNav } from "@/components/layout/bottom-nav"
 
 export function SiteHeader() {
     return (
+        <>
         <header className="sticky top-0 z-50 w-full glass border-b border-black/5 dark:border-white/5 bg-white/50 dark:bg-black/50 backdrop-blur-md">
             <div className="container flex h-16 items-center justify-between mx-auto px-4">
                 <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary hover:opacity-80 transition-opacity">
@@ -23,5 +25,7 @@ export function SiteHeader() {
                 </nav>
             </div>
         </header>
+        <BottomNav />
+        </>
     )
 }
